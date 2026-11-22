@@ -1,0 +1,90 @@
+package com.greatest.shortUrl.controller;
+
+import com.greatest.shortUrl.ApplicationProperties;
+import com.greatest.shortUrl.model.*;
+import com.greatest.shortUrl.services.SecurityUtils;
+import com.greatest.shortUrl.services.ShortUrlService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/shorten/")
+@Slf4j
+public class    ShortUrlController {
+    private final ShortUrlService shortUrlService;
+    private final SecurityUtils securityUtils;
+    private final ApplicationProperties properties;
+
+    @GetMapping()
+    public ResponseEntity<PagedResult<ShortUrlDto>> allPublicShortUrls(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "10") Integer size, @RequestParam(required = false) String search, @RequestParam(defaultValue = "createdAt") String sortBy, @RequestParam(defaultValue = "desc") String direction) {
+        log.info("GET /api/shorten/v1/ -  page: {}, size: {}", page, size);
+
+        PagedResult<ShortUrlDto> shortUrls = shortUrlService.findAllPublicShortUrls(page, size, search, sortBy, direction);
+        return ResponseEntity.ok(shortUrls);
+    }
+
+    @PostMapping()
+    public ResponseEntity<ShortUrlDto> createShortUrls(@RequestBody @Valid CreateShortUrl createShortUrl) {
+        var currentUserId = securityUtils.getCurrentUserId();
+
+        ShortUrlDto shortUrlDto = shortUrlService.createShortUrl(createShortUrl, currentUserId);
+
+        return ResponseEntity.ok(shortUrlDto);
+    }
+
+
+    @GetMapping("/my-urls")
+    public ResponseEntity<PagedResult<ShortUrlDto>> showUserUrls(@RequestParam(defaultValue = "1") int page, @RequestParam(required = false) String search, @RequestParam(required = false) Boolean isPrivate, @RequestParam(defaultValue = "createdAt") String sortBy, @RequestParam(defaultValue = "desc") String direction) {
+        var currentUserId = securityUtils.getCurrentUserId();
+//        PagedResult<ShortUrlDto> myUrls = shortUrlService.getUserShortUrls(currentUserId, page, properties.pageSize());
+        PagedResult<ShortUrlDto> myUrls =
+                shortUrlService.getUserShortUrls(
+                        currentUserId,
+                        page,
+                        properties.pageSize(),
+                        search,
+                        isPrivate,
+                        sortBy,
+                        direction
+                );
+        return ResponseEntity.ok(myUrls);
+    }
+
+    @DeleteMapping("/delete-urls")
+    public ResponseEntity<String> deleteUrls(@RequestParam(value = "ids", required = false) List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.badRequest().body(" No URLs selected for deletion");
+        }
+
+        var currentUserId = securityUtils.getCurrentUserId();
+        int deleted = shortUrlService.deleteUserShortUrls(ids, currentUserId);
+
+        return ResponseEntity.ok().body("Deleted " + deleted+" URLs  successfully");
+
+    }
+
+
+
+
+
+    @PutMapping("/{shortKey}")
+    public ResponseEntity<ShortUrlDto> updateShortUrl(@PathVariable String shortKey, @RequestBody @Valid UpdateShortUrlRequest request) {
+
+        String currentUserId = securityUtils.getCurrentUserId();
+
+        ShortUrlDto updatedUrl = shortUrlService.updateShortUrl(
+                shortKey,
+                request.originalUrl(),
+                currentUserId
+        );
+
+        return ResponseEntity.ok(updatedUrl);
+    }
+
+}

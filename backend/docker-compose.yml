@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-shorturl
+    restart: always
+    environment:
+      POSTGRES_DB: shorturl_db
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d shorturl_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-shorturl
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: short-url-app          # the image you built with docker build
+    container_name: shorturl-app
+    restart: on-failure
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/shorturl_db   # "postgres" = service name above
+      DB_USERNAME: appuser
+      DB_PASSWORD: apppass
+      REDIS_HOST: redis             # "redis" = service name above
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+    depends_on:
+      postgres:
+        condition: service_healthy  # wait for healthcheck to pass
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
